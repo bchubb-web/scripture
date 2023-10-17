@@ -8,6 +8,7 @@
 //#include <asm-generic/ioctls.h>
 
 #include "editor.hpp"
+#include "buffer.hpp"
 
 #define BTE_VERSION "0.0.1"
 
@@ -29,7 +30,7 @@ Editor::Editor() {
 
     int numrows = 0;
 
-    erow row;
+    erow *row = NULL;
 
     int cx = 0;
     int cy = 0;
@@ -37,9 +38,7 @@ Editor::Editor() {
     struct termios orig_termios;
 
     if (this->getWindowSize() == -1) {
-        this->clearScreen();
-        perror("getWindowSize");
-        exit(1);
+        this->die("getWindowSize");
     }
 }
 
@@ -49,12 +48,8 @@ int Editor::readKey() {
     int nread;
     char c;
     while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
-        if (nread == -1 && errno != EAGAIN) {
-            die("read");
-            this->clearScreen();
-            perror("read");
-            exit(1);
-        }
+        if (nread == -1 && errno != EAGAIN)
+            this->die((char*)"read");
     }
     // for keys with escape prefix
     if (c == '\x1b') {
@@ -146,8 +141,7 @@ void Editor::drawRows(Buffer *buf) {
     int y;
     for (y=0; y<this->screenrows;y++) {
         if (y >= this->numrows) {
-
-            if (y == this->screenrows / 3) {
+            if (this->numrows == 0 && y == this->screenrows / 3) {
                 char welcome[80];
                 int welcomelen = snprintf(welcome, sizeof(welcome),
                         "basic text editor -- version %s Hello World.", BTE_VERSION);
@@ -163,15 +157,15 @@ void Editor::drawRows(Buffer *buf) {
                 buf->append("~", 1);
             }
         } else {
-            int len = this->row.size;
+            int len = this->row[y].size;
             if (len > this->screencols) len = this->screencols;
-            buf->append(this->row.chars, len);
+            buf->append(this->row[y].chars, len);
         }
         buf->append("\x1b[K", 3);
         if (y < this->screenrows - 1) {
             buf->append("\r\n", 2);
         } else {
-
+            // my status line
             char cmdline[32];
             snprintf(cmdline, sizeof(cmdline), ": x: %d y: %d", this->cx +1, this->cy +1);
             buf->append(cmdline, strlen(cmdline));
@@ -202,7 +196,7 @@ void Editor::refresh() {
 
 /* ~~~ UTILS ~~~ */
 
-void Editor::die(std::string message) {
+void Editor::die(const char* message) {
     this->clearScreen();
     perror(message);
     exit(1);
@@ -274,13 +268,31 @@ void Editor::moveCursor(int key) {
 
 void Editor::open(char *filename) {
     FILE *fp = fopen(filename, "r");
-    if (!fp) die()
-    const char * line = "Hello world.";
-    ssize_t linelen = 12;
+    if (!fp) this->die("fopen");
 
-    this->row.size = linelen;
-    this->row.chars = new char[linelen];
-    memcpy(this->row.chars, line, linelen);
-    this->row.chars[linelen] = '\0';
-    this->numrows = 1;
+    char *line = NULL;
+    size_t linecap = 0;
+    ssize_t linelen;
+
+    while ((linelen = getline(&line, &linecap, fp)) != -1) {
+        while (linelen > 0 && (line[linelen - 1] == '\n' ||
+                    line[linelen - 1] == '\r'))
+            linelen--;
+        this->appendRow(line, linelen);
+    }
+    free(line);
+    fclose(fp);
+}
+
+
+/* ~~~ ROW OPERATIONS ~~~ */
+
+void Editor::appendRow(char *s, size_t len) {
+    this->row = (erow*)realloc(this->row, sizeof(erow) * (this->numrows + 1));
+    int at = this->numrows;
+    this->row[at].size = len;
+    this->row[at].chars = (char*)malloc(len + 1);
+    memcpy(this->row[at].chars, s, len);
+    this->row[at].chars[len] = '\0';
+    this->numrows++;
 }

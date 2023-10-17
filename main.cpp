@@ -1,3 +1,8 @@
+#define _DEFAULT_SOURCE
+#define _BSD_SOURCE
+#define _GNU_SOURCE
+
+
 /* includes */
 #include <cstdio>
 #include <iostream>
@@ -15,21 +20,15 @@ Editor editor;
 
 /* functions */
 
-void die(const char *s) {
-    editor.clearScreen();
-    perror(s);
-    exit(1);
-}
-
 void disableRawMode() {
     // restore terminal flags
     std::cout << "\r\n";
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &editor.orig_termios) == -1)
-        die("tcsetattr");
+        editor.die((char*)"tcsetattr");
 }
 
 void enableRawMode() {
-    if (tcgetattr(STDIN_FILENO, &editor.orig_termios) == -1) die("tcgetattr");
+    if (tcgetattr(STDIN_FILENO, &editor.orig_termios) == -1) editor.die((char*)"tcgetattr");
     atexit(disableRawMode);
     struct termios raw = editor.orig_termios;
     raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
@@ -39,15 +38,17 @@ void enableRawMode() {
     raw.c_cc[VMIN] = 0;
     raw.c_cc[VTIME] = 1;
 
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) die("tcsetattr");
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) editor.die((char*)"tcsetattr");
 }
 
 
 /* Main */
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     enableRawMode();
-    editor.open();
+    if (argc >= 2) {
+        editor.open(argv[1]);
+    }
     while (1) {
         editor.refresh();
         editor.processKeypress();

@@ -21,7 +21,9 @@ class Editor {
         int screenrows;
         int screencols;
         int numrows;
-        erow row;
+
+        erow *row;
+
         int cx;
         int cy;
         struct termios orig_termios;
@@ -37,13 +39,16 @@ class Editor {
         void refresh();
 
         /* utils */
-        void die(char* message);
+        void die(const char* message);
         int getWindowSize();
         int getCursorPosition();
         void moveCursor(int key);
 
         /* file i/o */
-        void open(char *filename);
+        void open(char* filename);
+
+        /* row operations */
+        void appendRow(char *s, size_t len);
 };
 
 #endif
