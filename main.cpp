@@ -47,6 +47,7 @@ void enableRawMode() {
 
 int main(int argc, char* argv[]) {
     enableRawMode();
+    editor.open();
     while (1) {
         editor.refresh();
         editor.processKeypress();

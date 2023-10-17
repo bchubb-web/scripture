@@ -1,10 +1,11 @@
-#include <cstring>
 #include <sys/termios.h>
-#include <unistd.h>
-//#include <asm-generic/ioctls.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <termios.h>
+#include <cstring>
 #include <string>
+//#include <asm-generic/ioctls.h>
 
 #include "editor.hpp"
 
@@ -26,6 +27,10 @@ Editor::Editor() {
     int screenrows;
     int screencols;
 
+    int numrows = 0;
+
+    erow row;
+
     int cx = 0;
     int cy = 0;
     //Buffer *buffer = b;
@@ -38,11 +43,14 @@ Editor::Editor() {
     }
 }
 
+
+/* INPUT */
 int Editor::readKey() {
     int nread;
     char c;
     while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
         if (nread == -1 && errno != EAGAIN) {
+            die("read");
             this->clearScreen();
             perror("read");
             exit(1);
@@ -124,6 +132,9 @@ void Editor::processKeypress() {
     }
 }
 
+
+/* ~~~ OUTPUT ~~~ */
+
 void Editor::clearScreen() {
     // send escape code (J) to erase the display
     write(STDOUT_FILENO, "\x1b[2J", 4);
@@ -134,20 +145,27 @@ void Editor::clearScreen() {
 void Editor::drawRows(Buffer *buf) {
     int y;
     for (y=0; y<this->screenrows;y++) {
-        if (y == this->screenrows / 3) {
-            char welcome[80];
-            int welcomelen = snprintf(welcome, sizeof(welcome),
-                    "basic text editor -- version %s Hello World.", BTE_VERSION);
-            if (welcomelen > this->screencols) welcomelen = this->screencols;
-            int padding = (this->screencols - welcomelen) / 2;
-            if (padding) {
+        if (y >= this->numrows) {
+
+            if (y == this->screenrows / 3) {
+                char welcome[80];
+                int welcomelen = snprintf(welcome, sizeof(welcome),
+                        "basic text editor -- version %s Hello World.", BTE_VERSION);
+                if (welcomelen > this->screencols) welcomelen = this->screencols;
+                int padding = (this->screencols - welcomelen) / 2;
+                if (padding) {
+                    buf->append("~", 1);
+                    padding--;
+                }
+                while (padding--) buf->append(" ", 1);
+                buf->append(welcome, welcomelen);
+            } else if (y != this->screenrows-1){
                 buf->append("~", 1);
-                padding--;
             }
-            while (padding--) buf->append(" ", 1);
-            buf->append(welcome, welcomelen);
-        } else if (y != this->screenrows-1){
-            buf->append("~", 1);
+        } else {
+            int len = this->row.size;
+            if (len > this->screencols) len = this->screencols;
+            buf->append(this->row.chars, len);
         }
         buf->append("\x1b[K", 3);
         if (y < this->screenrows - 1) {
@@ -179,6 +197,16 @@ void Editor::refresh() {
 
     write(STDOUT_FILENO, ab.b, ab.len);
     ab.free();
+}
+
+
+/* ~~~ UTILS ~~~ */
+
+void Editor::die(std::string message) {
+    this->clearScreen();
+    perror(message);
+    exit(1);
+
 }
 
 int Editor::getWindowSize() {
@@ -239,4 +267,20 @@ void Editor::moveCursor(int key) {
             }
             break;
     }
+}
+
+
+/* ~~~ FILE I/O ~~~ */
+
+void Editor::open(char *filename) {
+    FILE *fp = fopen(filename, "r");
+    if (!fp) die()
+    const char * line = "Hello world.";
+    ssize_t linelen = 12;
+
+    this->row.size = linelen;
+    this->row.chars = new char[linelen];
+    memcpy(this->row.chars, line, linelen);
+    this->row.chars[linelen] = '\0';
+    this->numrows = 1;
 }
