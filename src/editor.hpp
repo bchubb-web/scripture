@@ -20,14 +20,14 @@ class Editor {
         struct termios orig_termios;
 
         Editor();
-        char readKey();
+        int readKey();
         void processKeypress();
         void clearScreen();
         void drawRows(Buffer *ab);
         void refresh();
         int getWindowSize();
         int getCursorPosition();
-        void moveCursor(char key);
+        void moveCursor(int key);
 };
 
 #endif

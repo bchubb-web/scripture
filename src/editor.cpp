@@ -1,6 +1,7 @@
 #include <cstring>
+#include <sys/termios.h>
 #include <unistd.h>
-#include <asm-generic/ioctls.h>
+//#include <asm-generic/ioctls.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <string>
@@ -8,6 +9,18 @@
 #include "editor.hpp"
 
 #define BTE_VERSION "0.0.1"
+
+enum editorKeys {
+    ARROWUP = 1000,
+    ARROWDOWN,
+    ARROWLEFT,
+    ARROWRIGHT,
+    HOME,
+    END,
+    PAGEUP,
+    PAGEDOWN,
+    DELETE,
+};
 
 Editor::Editor() {
     int screenrows;
@@ -25,7 +38,7 @@ Editor::Editor() {
     }
 }
 
-char Editor::readKey() {
+int Editor::readKey() {
     int nread;
     char c;
     while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
@@ -35,20 +48,77 @@ char Editor::readKey() {
             exit(1);
         }
     }
-    return c;
+    // for keys with escape prefix
+    if (c == '\x1b') {
+        // read more chars into a buffer
+        char seq[3];
+        if (read(STDIN_FILENO, &seq[0], 1) != 1) return '\x1b';
+        if (read(STDIN_FILENO, &seq[1], 1) != 1) return '\x1b';
+        // they all start with [
+        if (seq[0] == '[') {
+            // if next char is a number
+            if (seq[1] >= '0' && seq[1] <= '9') {
+                //
+                if (read(STDIN_FILENO, &seq[2], 1) != 1) return '\x1b';
+                if (seq[2] == '~') {
+                    switch (seq[1]) {
+                        case '1': return HOME;
+                        case '3': return DELETE;
+                        case '4': return END;
+                        case '5': return PAGEUP;
+                        case '6': return PAGEDOWN;
+                        case '7': return HOME;
+                        case '8': return END;
+                    }
+                }
+            } else {
+                switch (seq[1]) {
+                    case 'A': return ARROWUP;
+                    case 'B': return ARROWDOWN;
+                    case 'C': return ARROWRIGHT;
+                    case 'D': return ARROWLEFT;
+                    case 'F': return END;
+                    case 'H': return HOME;
+                }
+            }
+        } else if (seq[0] == 'F') {
+            switch (seq[1]) {
+                case 'F': return END;
+                case 'H': return HOME;
+            }
+        }
+        return '\x1b';
+    } else {
+        return c;
+    }
 };
 
 void Editor::processKeypress() {
-    char c = this->readKey();
+    int c = this->readKey();
     switch (c) {
         case CTRL_KEY('q'):
             this->clearScreen();
             exit(0);
             break;
-        case 'h':
-        case 'j':
-        case 'k':
-        case 'l':
+        case PAGEUP:
+        case PAGEDOWN:
+            {
+                int times = this->screenrows;
+                while (--times) 
+                    this->moveCursor(c == PAGEUP ? ARROWUP : ARROWDOWN);
+
+            }
+            break;
+        case HOME:
+            this->cx = 0;
+            break;
+        case END:
+            this->cx = this->screencols-1;
+            break;
+        case ARROWLEFT:
+        case ARROWDOWN:
+        case ARROWUP:
+        case ARROWRIGHT:
             this->moveCursor(c);
             break;
     }
@@ -146,19 +216,27 @@ int Editor::getCursorPosition() {
     return 0;
 }
 
-void Editor::moveCursor(char key) {
+void Editor::moveCursor(int key) {
     switch (key) {
-        case 'h':
-            this->cx--;
+        case ARROWLEFT:
+            if (this->cx != 0) {
+                this->cx--;
+            }
             break;
-        case 'l':
-            this->cx++;
+        case ARROWRIGHT:
+            if (this->cx != this->screencols -1) {
+                this->cx++;
+            }
             break;
-        case 'k':
-            this->cy--;
+        case ARROWUP:
+            if (this->cy != 0) {
+                this->cy--;
+            }
             break;
-        case 'j':
-            this->cy++;
+        case ARROWDOWN:
+            if (this->cy != this->screenrows -2) {
+                this->cy++;
+            }
             break;
     }
 }
