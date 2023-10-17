@@ -268,11 +268,17 @@ void Editor::moveCursor(int key) {
         case ARROWLEFT:
             if (this->cx != 0) {
                 this->cx--;
+            } else if (this->cy > 0) {
+                this->cy--;
+                this->cx = this->row[this->cy].size;
             }
             break;
         case ARROWRIGHT:
             if (row && this->cx < row->size) {
                 this->cx++;
+            } else if (row && this->cx == row->size) {
+                this->cy++;
+                this->cx = 0;
             }
             break;
         case ARROWUP:
