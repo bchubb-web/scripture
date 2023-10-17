@@ -23,9 +23,10 @@ class Editor {
         int numrows;
 
         erow *row;
+        int rowoff;
+        int coloff;
 
-        int cx;
-        int cy;
+        int cx, cy;
         struct termios orig_termios;
 
         Editor();
@@ -37,6 +38,7 @@ class Editor {
         void clearScreen();
         void drawRows(Buffer *ab);
         void refresh();
+        void scroll();
 
         /* utils */
         void die(const char* message);

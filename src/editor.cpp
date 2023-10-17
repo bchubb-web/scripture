@@ -32,6 +32,9 @@ Editor::Editor() {
 
     erow *row = NULL;
 
+    int rowoff = 0;
+    int coloff = 0;
+
     int cx = 0;
     int cy = 0;
     //Buffer *buffer = b;
@@ -130,6 +133,21 @@ void Editor::processKeypress() {
 
 /* ~~~ OUTPUT ~~~ */
 
+void Editor::scroll() {
+    if (this->cy < this->rowoff) {
+        this->rowoff = this->cy;
+    }
+    if (this->cy >= this->rowoff + this->screenrows) {
+        this->rowoff = this->cy - this->screenrows + 1;
+    }
+    if (this->cx < this->coloff) {
+        this->coloff = this->cx;
+    }
+    if (this->cx >= this->coloff + this->screencols) {
+        this->coloff = this->cx - this->screencols + 1;
+    }
+}
+
 void Editor::clearScreen() {
     // send escape code (J) to erase the display
     write(STDOUT_FILENO, "\x1b[2J", 4);
@@ -140,7 +158,8 @@ void Editor::clearScreen() {
 void Editor::drawRows(Buffer *buf) {
     int y;
     for (y=0; y<this->screenrows;y++) {
-        if (y >= this->numrows) {
+        int filerow = y + this->rowoff;
+        if (filerow >= this->numrows) {
             if (this->numrows == 0 && y == this->screenrows / 3) {
                 char welcome[80];
                 int welcomelen = snprintf(welcome, sizeof(welcome),
@@ -153,27 +172,30 @@ void Editor::drawRows(Buffer *buf) {
                 }
                 while (padding--) buf->append(" ", 1);
                 buf->append(welcome, welcomelen);
-            } else if (y != this->screenrows-1){
+            } else {
                 buf->append("~", 1);
             }
         } else {
-            int len = this->row[y].size;
+            int len = this->row[filerow].size - this->coloff;
+            if (len < 0) len = 0;
             if (len > this->screencols) len = this->screencols;
-            buf->append(this->row[y].chars, len);
+            buf->append(&this->row[filerow].chars[this->coloff], len);
         }
         buf->append("\x1b[K", 3);
         if (y < this->screenrows - 1) {
             buf->append("\r\n", 2);
-        } else {
-            // my status line
-            char cmdline[32];
-            snprintf(cmdline, sizeof(cmdline), ": x: %d y: %d", this->cx +1, this->cy +1);
-            buf->append(cmdline, strlen(cmdline));
-        }
+            /*} else {
+        // my status line
+        char cmdline[32];
+        snprintf(cmdline, sizeof(cmdline), ": x: %d y: %d", this->cx +1, this->cy +1);
+        buf->append(cmdline, strlen(cmdline));*/
+    }
     }
 }
 
 void Editor::refresh() {
+
+    this->scroll();
 
     Buffer ab;
 
@@ -183,7 +205,8 @@ void Editor::refresh() {
     this->drawRows(&ab);
 
     char buf[32];
-    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", this->cy +1, this->cx +1);
+    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (this->cy - this->rowoff) +1, 
+            (this->cx - this->coloff) +1);
     ab.append(buf, strlen(buf));
 
 
@@ -239,6 +262,8 @@ int Editor::getCursorPosition() {
 }
 
 void Editor::moveCursor(int key) {
+    erow *row = (this->cy >= this->numrows) ? NULL : &this->row[this->cy];
+
     switch (key) {
         case ARROWLEFT:
             if (this->cx != 0) {
@@ -246,7 +271,7 @@ void Editor::moveCursor(int key) {
             }
             break;
         case ARROWRIGHT:
-            if (this->cx != this->screencols -1) {
+            if (row && this->cx < row->size) {
                 this->cx++;
             }
             break;
@@ -256,10 +281,15 @@ void Editor::moveCursor(int key) {
             }
             break;
         case ARROWDOWN:
-            if (this->cy != this->screenrows -2) {
+            if (this->cy != this->numrows) {
                 this->cy++;
             }
             break;
+    }
+    row = (this->cy >= this->numrows) ? NULL : &this->row[this->cy];
+    int rowlen = row ? row->size : 0;
+    if (this->cx > rowlen) {
+        this->cx = rowlen;
     }
 }
 
