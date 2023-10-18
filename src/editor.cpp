@@ -11,6 +11,7 @@
 #include "buffer.hpp"
 
 #define BTE_VERSION "0.0.1"
+#define TABSTOP 4
 
 enum editorKeys {
     ARROWUP = 1000,
@@ -35,8 +36,9 @@ Editor::Editor() {
     int rowoff = 0;
     int coloff = 0;
 
-    int cx = 0;
-    int cy = 0;
+    int cx, cy = 0;
+
+    int rx = 0;
     //Buffer *buffer = b;
     struct termios orig_termios;
 
@@ -109,6 +111,13 @@ void Editor::processKeypress() {
         case PAGEUP:
         case PAGEDOWN:
             {
+                if (c == PAGEUP) {
+                    this->cy = this->rowoff;
+                } else if (c == PAGEDOWN) {
+                     this->cy = this->rowoff + this->screenrows + 1;
+                     if (this->cy > this->numrows) this->cy = this->numrows;
+                }
+
                 int times = this->screenrows;
                 while (--times) 
                     this->moveCursor(c == PAGEUP ? ARROWUP : ARROWDOWN);
@@ -119,7 +128,8 @@ void Editor::processKeypress() {
             this->cx = 0;
             break;
         case END:
-            this->cx = this->screencols-1;
+            if (this->cy < this->numrows)
+                this->cx = this->row[cy].size;
             break;
         case ARROWLEFT:
         case ARROWDOWN:
@@ -134,17 +144,22 @@ void Editor::processKeypress() {
 /* ~~~ OUTPUT ~~~ */
 
 void Editor::scroll() {
+    this->rx = 0;
+    if (this->cy < this->numrows) {
+        this->rx = this->rowCxToRx(&this->row[this->cy], this->cx);
+    }
+
     if (this->cy < this->rowoff) {
         this->rowoff = this->cy;
     }
     if (this->cy >= this->rowoff + this->screenrows) {
         this->rowoff = this->cy - this->screenrows + 1;
     }
-    if (this->cx < this->coloff) {
-        this->coloff = this->cx;
+    if (this->rx < this->coloff) {
+        this->coloff = this->rx;
     }
-    if (this->cx >= this->coloff + this->screencols) {
-        this->coloff = this->cx - this->screencols + 1;
+    if (this->rx >= this->coloff + this->screencols) {
+        this->coloff = this->rx - this->screencols + 1;
     }
 }
 
@@ -163,7 +178,7 @@ void Editor::drawRows(Buffer *buf) {
             if (this->numrows == 0 && y == this->screenrows / 3) {
                 char welcome[80];
                 int welcomelen = snprintf(welcome, sizeof(welcome),
-                        "basic text editor -- version %s Hello World.", BTE_VERSION);
+                        "basic text editor -- version %s", BTE_VERSION);
                 if (welcomelen > this->screencols) welcomelen = this->screencols;
                 int padding = (this->screencols - welcomelen) / 2;
                 if (padding) {
@@ -176,10 +191,10 @@ void Editor::drawRows(Buffer *buf) {
                 buf->append("~", 1);
             }
         } else {
-            int len = this->row[filerow].size - this->coloff;
+            int len = this->row[filerow].rsize - this->coloff;
             if (len < 0) len = 0;
             if (len > this->screencols) len = this->screencols;
-            buf->append(&this->row[filerow].chars[this->coloff], len);
+            buf->append(&this->row[filerow].render[this->coloff], len);
         }
         buf->append("\x1b[K", 3);
         if (y < this->screenrows - 1) {
@@ -206,7 +221,7 @@ void Editor::refresh() {
 
     char buf[32];
     snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (this->cy - this->rowoff) +1, 
-            (this->cx - this->coloff) +1);
+            (this->rx - this->coloff) +1);
     ab.append(buf, strlen(buf));
 
 
@@ -323,6 +338,37 @@ void Editor::open(char *filename) {
 
 /* ~~~ ROW OPERATIONS ~~~ */
 
+int Editor::rowCxToRx(erow *row, int cx){
+    int rx = 0;
+    int j;
+    for (j=0;j<cx;j++) {
+        if (row->chars[j] == '\t') 
+            rx += (TABSTOP - 1) - (rx % TABSTOP );
+        rx++;
+    }
+    return rx;
+}
+
+void Editor::updateRow(erow *row) {
+    int tabs = 0;
+    int j;
+    for (j = 0; j < row->size; j++)
+        if (row->chars[j] == '\t') tabs++;
+    free(row->render);
+    row->render = (char*)malloc(row->size + tabs*(TABSTOP - 1) + 1);
+    int idx = 0;
+    for (j = 0; j < row->size; j++) {
+        if (row->chars[j] == '\t') {
+            row->render[idx++] = ' ';
+            while (idx % TABSTOP != 0) row->render[idx++] = ' ';
+        } else {
+            row->render[idx++] = row->chars[j];
+        }
+    }
+    row->render[idx] = '\0';
+    row->rsize = idx;
+}
+
 void Editor::appendRow(char *s, size_t len) {
     this->row = (erow*)realloc(this->row, sizeof(erow) * (this->numrows + 1));
     int at = this->numrows;
@@ -330,5 +376,11 @@ void Editor::appendRow(char *s, size_t len) {
     this->row[at].chars = (char*)malloc(len + 1);
     memcpy(this->row[at].chars, s, len);
     this->row[at].chars[len] = '\0';
+
+    this->row[at].rsize = 0;
+    this->row[at].render = NULL;
+
+    this->updateRow(&this->row[at]);
+
     this->numrows++;
 }

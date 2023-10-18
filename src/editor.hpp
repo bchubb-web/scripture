@@ -8,7 +8,9 @@
 
 typedef struct erow {
     int size;
+    int rsize;
     char* chars;
+    char* render;
 } erow;
 
 /* definitions */
@@ -27,6 +29,7 @@ class Editor {
         int coloff;
 
         int cx, cy;
+        int rx;
         struct termios orig_termios;
 
         Editor();
@@ -50,6 +53,8 @@ class Editor {
         void open(char* filename);
 
         /* row operations */
+        int rowCxToRx(erow *row, int cx);
+        void updateRow(erow *row);
         void appendRow(char *s, size_t len);
 };
 
