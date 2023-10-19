@@ -49,9 +49,11 @@ int main(int argc, char *argv[]) {
     if (argc >= 2) {
         editor.open(argv[1]);
     }
+    editor.setStatusMessage("HELP: <C-q> to quit");
     while (1) {
         editor.refresh();
         editor.processKeypress();
     }
+
     return 0;
 }

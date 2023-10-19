@@ -1,3 +1,5 @@
+#include <cstdarg>
+#include <cstdio>
 #include <sys/termios.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -39,12 +41,19 @@ Editor::Editor() {
     int cx, cy = 0;
 
     int rx = 0;
+
+    char *filename = NULL;
+
+    char statusmsg[1] = {'\0'};
+    time_t statusmsg_time = 0;
+
     //Buffer *buffer = b;
     struct termios orig_termios;
 
     if (this->getWindowSize() == -1) {
         this->die("getWindowSize");
     }
+    this->screenrows -= 2;
 }
 
 
@@ -197,15 +206,39 @@ void Editor::drawRows(Buffer *buf) {
             buf->append(&this->row[filerow].render[this->coloff], len);
         }
         buf->append("\x1b[K", 3);
-        if (y < this->screenrows - 1) {
-            buf->append("\r\n", 2);
-            /*} else {
-        // my status line
-        char cmdline[32];
-        snprintf(cmdline, sizeof(cmdline), ": x: %d y: %d", this->cx +1, this->cy +1);
-        buf->append(cmdline, strlen(cmdline));*/
+        buf->append("\r\n", 2);
     }
+}
+
+void Editor::drawStatusBar(Buffer *buf) {
+    buf->append("\x1b[7m", 4);
+    char status[80], rstatus[80];
+    int len = snprintf(status, sizeof(status), " %.20s - %d lines", 
+            this->filename ? this->filename : "[no file]", this->numrows);
+    int rlen = snprintf(rstatus, sizeof(rstatus), "%d:%d ", 
+            this->cy + 1, this->cx +1);
+    if (len > this->screencols) len = this->screencols;
+    buf->append(status, len);
+    while (len < this->screencols) {
+        if (this->screencols - len == rlen) {
+            buf->append(rstatus, rlen);
+            break;
+        } else {
+            buf->append(" ", 1);
+            len++;
+        }
     }
+    buf->append("\x1b[m", 3);
+    buf->append("\r\n", 2);
+
+}
+
+void Editor::setStatusMessage(const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(this->statusmsg, sizeof(this->statusmsg), fmt, ap);
+    va_end(ap);
+    this->statusmsg_time = time(NULL);
 }
 
 void Editor::refresh() {
@@ -218,6 +251,7 @@ void Editor::refresh() {
     ab.append("\x1b[H", 3);
 
     this->drawRows(&ab);
+    this->drawStatusBar(&ab);
 
     char buf[32];
     snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (this->cy - this->rowoff) +1, 
@@ -318,6 +352,8 @@ void Editor::moveCursor(int key) {
 /* ~~~ FILE I/O ~~~ */
 
 void Editor::open(char *filename) {
+    free(this->filename);
+    this->filename = strdup(filename);
     FILE *fp = fopen(filename, "r");
     if (!fp) this->die("fopen");
 

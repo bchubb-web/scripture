@@ -30,6 +30,10 @@ class Editor {
 
         int cx, cy;
         int rx;
+        
+        char* filename;
+        char statusmsg[80];
+        time_t statusmsg_time;
         struct termios orig_termios;
 
         Editor();
@@ -40,6 +44,8 @@ class Editor {
         /* output */
         void clearScreen();
         void drawRows(Buffer *ab);
+        void drawStatusBar(Buffer *buf);
+        void setStatusMessage(const char *fmt, ...);
         void refresh();
         void scroll();
 
