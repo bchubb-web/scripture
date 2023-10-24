@@ -45,6 +45,7 @@ class Editor {
         void clearScreen();
         void drawRows(Buffer *ab);
         void drawStatusBar(Buffer *buf);
+        void drawMessageBar(Buffer *buf);
         void setStatusMessage(const char *fmt, ...);
         void refresh();
         void scroll();

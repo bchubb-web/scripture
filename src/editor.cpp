@@ -233,6 +233,14 @@ void Editor::drawStatusBar(Buffer *buf) {
 
 }
 
+void Editor::drawMessageBar(Buffer *buf) {
+    buf->append("\x1b[K", 3);
+    int messageLen = strlen(this->statusmsg);
+    if (messageLen > this->screencols) messageLen = this->screencols;
+    if (messageLen && time(NULL) - this->statusmsg_time < 5)
+        buf->append(this->statusmsg, messageLen);
+}
+
 void Editor::setStatusMessage(const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -252,6 +260,7 @@ void Editor::refresh() {
 
     this->drawRows(&ab);
     this->drawStatusBar(&ab);
+    this->drawMessageBar(&ab);
 
     char buf[32];
     snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (this->cy - this->rowoff) +1, 
