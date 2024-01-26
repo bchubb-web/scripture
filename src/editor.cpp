@@ -16,6 +16,7 @@
 #define TABSTOP 4
 
 enum editorKeys {
+    BACKSPACE = 127,
     ARROWUP = 1000,
     ARROWDOWN,
     ARROWLEFT,
@@ -113,6 +114,9 @@ int Editor::readKey() {
 void Editor::processKeypress() {
     int c = this->readKey();
     switch (c) {
+        case '\r':
+            /* todo */
+            break;
         case CTRL_KEY('q'):
             this->clearScreen();
             exit(0);
@@ -133,6 +137,7 @@ void Editor::processKeypress() {
 
             }
             break;
+
         case HOME:
             this->cx = 0;
             break;
@@ -140,11 +145,26 @@ void Editor::processKeypress() {
             if (this->cy < this->numrows)
                 this->cx = this->row[cy].size;
             break;
+
+        case BACKSPACE:
+        case CTRL_KEY('h'):
+        case DELETE:
+            /* todo */
+            break;
+
         case ARROWLEFT:
         case ARROWDOWN:
         case ARROWUP:
         case ARROWRIGHT:
             this->moveCursor(c);
+            break;
+
+        case CTRL_KEY('l'):
+        case '\x1b':
+            break;
+
+        default: 
+            this->insertChar(c);
             break;
     }
 }
@@ -429,3 +449,29 @@ void Editor::appendRow(char *s, size_t len) {
 
     this->numrows++;
 }
+
+void Editor::rowInsertChar(erow *row, int at, int c) {
+    // if valid on line
+    if (at < 0 || at > row->size) at = row->size;
+
+    // reallocate the memory to have space for new char and null byte
+    row->chars = (char*)realloc(row->chars, row->size + 2);
+    // i think pushes rest of the array down by one?
+    memmove(&row->chars[at + 1], &row->chars[at], row->size - at + 1);
+    row->size++;
+    row->chars[at] = c;
+    this->updateRow(row);
+}
+
+/* ~~~ EDITOR OPERATIONS ~~~ */
+
+void Editor::insertChar(int c) {
+    // bottom line of file
+    if (this->cy == this->numrows) {
+        this->appendRow((char*)"", 0);
+    }
+    this->rowInsertChar(&this->row[this->cy], this->cx, c);
+    this->cx++;
+}
+
+

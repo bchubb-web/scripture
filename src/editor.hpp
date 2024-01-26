@@ -63,6 +63,10 @@ class Editor {
         int rowCxToRx(erow *row, int cx);
         void updateRow(erow *row);
         void appendRow(char *s, size_t len);
+        void rowInsertChar(erow *row, int at, int c);
+
+        /* editor operations */
+        void insertChar(int c);
 };
 
 #endif
